@@ -2,10 +2,10 @@ package main
 
 import (
 	"log"
-	"net"
+	"net/netip"
 	"os"
 	"github.com/armon/go-socks5"
-	"github.com/caarlos0/env/v6"
+	env "github.com/caarlos0/env/v6"
 )
 
 type params struct {
@@ -14,6 +14,7 @@ type params struct {
 	Port            string    `env:"PROXY_PORT" envDefault:"1080"`
 	AllowedDestFqdn string    `env:"ALLOWED_DEST_FQDN" envDefault:""`
 	AllowedIPs      []string  `env:"ALLOWED_IPS" envSeparator:"," envDefault:""`
+	AllowedNets     []string `env:"ALLOWED_NETS" envSeparator:"," envDefault:""`
 	ListenIP 		string 	  `env:"PROXY_LISTEN_IP" envDefault:"0.0.0.0"`
 	RequireAuth		bool      `env:"REQUIRE_AUTH" envDefault:"true"`
 }
@@ -54,12 +55,22 @@ func main() {
 	}
 
 	// Set IP whitelist
-	if len(cfg.AllowedIPs) > 0 {
-		whitelist := make([]net.IP, len(cfg.AllowedIPs))
-		for i, ip := range cfg.AllowedIPs {
-			whitelist[i] = net.ParseIP(ip)
+	if len(cfg.AllowedIPs) > 0 || len(cfg.AllowedNets) > 0 {
+		whitelist := make([]netip.Addr, len(cfg.AllowedIPs))
+		whitelistnet := make([]netip.Prefix, len(cfg.AllowedNets))
+
+		if len(cfg.AllowedIPs) > 0 {
+			for i, ip := range cfg.AllowedIPs {
+				whitelist[i], _ = netip.ParseAddr(ip)
+			}
 		}
-		server.SetIPWhitelist(whitelist)
+		if len(cfg.AllowedNets) > 0 {
+			for i, inet := range cfg.AllowedNets {
+				whitelistnet[i], _ = netip.ParsePrefix(inet)
+			}
+		}
+
+		server.SetIPWhitelist(whitelist, whitelistnet)
 	}
 
 	listenAddr := ":" + cfg.Port
